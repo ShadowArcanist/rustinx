@@ -1,0 +1,86 @@
+---
+title: Static File Serving
+description: How Rustinx serves files, handles MIME types, caching, and streaming.
+---
+
+Rustinx serves static files from a directory you specify as the vhost `root`.
+
+## File Resolution
+
+When a request comes in, Rustinx resolves the file path like this:
+
+1. Decode the URL path (percent-decode `%20` to space, etc.)
+2. Look for an exact file match: `root + path`
+3. If not found, try as a directory with index: `root + path + /index.html`
+4. If SPA mode is on, fall back to `root/index.html`
+5. If a custom 404 is configured, serve that with status 404
+6. Otherwise return `404 not found` in plain text
+
+### Example
+
+With `root = "/static"` and `index = "index.html"`:
+
+| Request | Resolved File |
+| --- | --- |
+| `/` | `/static/index.html` |
+| `/about` | `/static/about` or `/static/about/index.html` |
+| `/assets/style.css` | `/static/assets/style.css` |
+| `/missing` | 404 (or SPA fallback) |
+
+## MIME Types
+
+Rustinx detects content types from file extensions. Common types:
+
+| Extension | Content-Type |
+| --- | --- |
+| `.html`, `.htm` | `text/html; charset=utf-8` |
+| `.css` | `text/css; charset=utf-8` |
+| `.js`, `.mjs` | `application/javascript; charset=utf-8` |
+| `.json` | `application/json; charset=utf-8` |
+| `.png` | `image/png` |
+| `.jpg`, `.jpeg` | `image/jpeg` |
+| `.svg` | `image/svg+xml; charset=utf-8` |
+| `.woff2` | `font/woff2` |
+| `.wasm` | `application/wasm` |
+| `.pdf` | `application/pdf` |
+
+Unknown extensions get `application/octet-stream`.
+
+## ETag Caching
+
+When `etag = true` (default), Rustinx adds an `ETag` header to every file response. On subsequent requests with `If-None-Match`, it returns `304 Not Modified` without reading the file.
+
+ETags are computed from file metadata (modification time, size, inode) for speed. No file content is read for cache checks.
+
+```http
+GET /style.css
+→ 200 OK, ETag: "6831a3f2-1a4b-1234-5678"
+
+GET /style.css (If-None-Match: "6831a3f2-1a4b-1234-5678")
+→ 304 Not Modified (no body sent)
+```
+
+## File Streaming
+
+Files are streamed in 8KB chunks. Rustinx never loads an entire file into memory, regardless of file size. This keeps memory usage constant even when serving large files to many clients simultaneously.
+
+## HEAD Requests
+
+`HEAD` requests return the same headers as `GET` (including `Content-Length`, `Content-Type`, `ETag`) but never read the file content. This is efficient for cache validation and monitoring.
+
+## Custom 404 Pages
+
+Serve a custom HTML page for missing files:
+
+```toml
+[[vhost]]
+hostnames = ["mysite.com"]
+root = "/static"
+custom_404 = "404.html"
+```
+
+The file path is relative to `root`. The response status is `404` with all configured security headers.
+
+## Method Restrictions
+
+Only `GET` and `HEAD` are allowed by default. All other methods return `405 Method Not Allowed` with an `Allow: GET, HEAD` header.

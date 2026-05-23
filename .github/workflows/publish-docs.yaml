@@ -1,0 +1,81 @@
+name: Build and Publish Docs
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "docs/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: build-docs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-push:
+    name: Build ${{ matrix.arch }}
+    if: github.repository == 'ShadowArcanist/rustinx'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./docs
+          push: true
+          platforms: ${{ matrix.platform }}
+          tags: |
+            ghcr.io/shadowarcanist/rustinx-docs:latest-${{ matrix.arch }}
+          cache-from: type=registry,ref=ghcr.io/shadowarcanist/rustinx-docs:buildcache-${{ matrix.arch }}
+          cache-to: type=registry,ref=ghcr.io/shadowarcanist/rustinx-docs:buildcache-${{ matrix.arch }},mode=max
+
+  merge-manifest:
+    name: Merge Manifest
+    needs: build-push
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create and publish multi-arch manifest
+        shell: bash
+        run: |
+          docker buildx imagetools create \
+            "ghcr.io/shadowarcanist/rustinx-docs:latest-amd64" \
+            "ghcr.io/shadowarcanist/rustinx-docs:latest-arm64" \
+            --tag "ghcr.io/shadowarcanist/rustinx-docs:latest"

@@ -1,0 +1,105 @@
+---
+title: Redirects
+description: Configure URL redirects inline or from external files.
+---
+
+Rustinx supports 301/302 redirects configured inline in the TOML file or loaded from separate files. Redirects are checked before static file serving.
+
+## Inline Redirects
+
+Add redirects directly in a vhost block:
+
+```toml title="rustinx.toml"
+[[vhost]]
+hostnames = ["mysite.com"]
+root = "/static"
+
+[[vhost.redirects]]
+path = "/old-page"
+url = "https://mysite.com/new-page"
+
+[[vhost.redirects]]
+path = "/github"
+url = "https://github.com/myuser"
+code = 301
+```
+
+## Redirect Fields
+
+| Field | Required | Default | Description |
+| --- | --- | --- | --- |
+| `path` | Yes | — | The URL path to match (exact match) |
+| `url` | Yes | — | Where to redirect |
+| `code` | No | 301 | HTTP status code (300-399) |
+
+## External Redirect Files
+
+For sites with many redirects, load them from a separate file:
+
+```toml title="rustinx.toml"
+[[vhost]]
+hostnames = ["links.mysite.com"]
+root = "/static"
+redirects_file = "/etc/rustinx/redirects/mysite.toml"
+```
+
+The redirect file uses this format:
+
+```toml title="redirects/mysite.toml"
+[[redirect]]
+path = "/social/youtube"
+url = "https://www.youtube.com/@myuser/videos"
+
+[[redirect]]
+path = "/social/discord"
+url = "https://discord.com/invite/abc123"
+
+[[redirect]]
+path = "/social/github"
+url = "https://github.com/myuser"
+
+[[redirect]]
+path = "/support"
+url = "https://buymeacoffee.com/myuser"
+```
+
+## Combining Inline and File Redirects
+
+You can use both inline redirects and a redirect file on the same vhost. If the same path appears in both, the inline redirect wins:
+
+```toml
+[[vhost]]
+hostnames = ["mysite.com"]
+root = "/static"
+redirects_file = "/etc/rustinx/redirects/base.toml"
+
+# This overrides the same path from the file
+[[vhost.redirects]]
+path = "/special"
+url = "https://example.com/override"
+```
+
+## Redirect Matching
+
+Redirects use exact path matching on the decoded URL. This means:
+
+- `/old-page` matches requests for `/old-page`
+- `/old-page` does **not** match `/old-page/subpath`
+- Encoded requests like `/%6Fld-page` are decoded first, so they match `/old-page`
+
+## Redirect Safety
+
+Rustinx validates all redirect URLs at startup:
+
+- Only `https://` and local paths (`/path`) are allowed
+- `http://` redirects are blocked (use HTTPS)
+- Protocol-relative URLs (`//evil.com`) are blocked
+- Encoded protocol-relative forms are blocked
+- Backslashes are blocked
+- Embedded credentials (`https://user@host`) are blocked
+- Encoded control characters are blocked
+- Duplicate redirect paths are rejected
+
+```ansi
+[rustinx] config error: redirect '/go' has invalid URL 'http://example.com' (must be https:// or /path)
+```

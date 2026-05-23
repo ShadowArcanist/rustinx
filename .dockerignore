@@ -1,0 +1,8 @@
+app/target/
+.git/
+.ai/
+.DS_Store
+docs/
+examples/
+*.md
+*.svg

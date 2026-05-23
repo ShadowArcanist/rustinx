@@ -1,0 +1,23 @@
+[package]
+name = "rustinx"
+version = "1.0.0"
+edition = "2021"
+description = "Ultra-lightweight static web server for containerized static sites"
+license = "MIT"
+
+[dependencies]
+hyper = { version = "1", features = ["http1", "server"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
+http-body = "1"
+http-body-util = "0.1"
+bytes = "1"
+tokio = { version = "1", features = ["rt", "net", "fs", "io-util", "signal", "macros", "sync", "time"] }
+toml = "0.8"
+serde = { version = "1", features = ["derive"] }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

@@ -1,0 +1,120 @@
+---
+title: Link Shortener
+description: Use Rustinx as a static link shortener with redirect rules.
+---
+
+This example shows how to build a link shortener landing page with Rustinx. No database needed — all redirects are defined in a TOML file.
+
+## Use Case
+
+You want `links.mysite.com/social/youtube` to redirect to your YouTube channel, `links.mysite.com/support` to redirect to your support page, and the root `/` to serve a landing page listing all links.
+
+## Project Structure
+
+<Files>
+  <Folder name="links-site" defaultOpen>
+    <Folder name="public" defaultOpen>
+      <File name="index.html" />
+      <Folder name="assets">
+        <File name="style.css" />
+      </Folder>
+    </Folder>
+    <File name="redirects.toml" />
+    <File name="rustinx.toml" />
+  </Folder>
+</Files>
+
+## Config
+
+```toml title="rustinx.toml"
+[server]
+listen = "0.0.0.0:9090"
+behind_proxy = true
+trusted_proxy_depth = 2
+
+[[vhost]]
+hostnames = ["_"]
+root = "/static"
+spa = false
+redirects_file = "/etc/rustinx/redirects/links.toml"
+```
+
+## Redirects File
+
+```toml title="redirects.toml"
+# Social links
+[[redirect]]
+path = "/social/youtube"
+url = "https://www.youtube.com/@myuser/videos"
+
+[[redirect]]
+path = "/social/discord"
+url = "https://discord.com/invite/abc123"
+
+[[redirect]]
+path = "/social/github"
+url = "https://github.com/myuser"
+
+[[redirect]]
+path = "/social/twitter"
+url = "https://x.com/myuser"
+
+[[redirect]]
+path = "/social/linkedin"
+url = "https://www.linkedin.com/in/myuser"
+
+# Support
+[[redirect]]
+path = "/support"
+url = "https://buymeacoffee.com/myuser"
+
+# Affiliate links
+[[redirect]]
+path = "/affiliate/hosting"
+url = "https://hosting.example/?ref=myuser"
+```
+
+## Docker Compose
+
+```yaml title="docker-compose.yml"
+services:
+  links:
+    image: ghcr.io/shadowarcanist/rustinx:v1.0
+    expose:
+      - "9090"
+    volumes:
+      - ./rustinx.toml:/etc/rustinx/rustinx.toml:ro
+      - ./public:/static:ro
+      - ./redirects.toml:/etc/rustinx/redirects/links.toml:ro
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.links.rule=Host(`links.mysite.com`)"
+      - "traefik.http.services.links.loadbalancer.server.port=9090"
+```
+
+## How It Works
+
+| Request | Response |
+| --- | --- |
+| `/` | Serves `index.html` (landing page) |
+| `/social/youtube` | 301 redirect to YouTube |
+| `/social/discord` | 301 redirect to Discord |
+| `/support` | 301 redirect to support page |
+| `/unknown` | 404 Not Found |
+
+Redirects are checked before static file serving. If a redirect path matches, the redirect happens immediately without touching the filesystem.
+
+## Adding New Links
+
+Edit `redirects.toml` and restart the container:
+
+```bash
+docker compose restart links
+```
+
+No rebuild needed since the redirects file is mounted as a volume.

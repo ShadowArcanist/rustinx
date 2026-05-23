@@ -1,0 +1,106 @@
+---
+title: Access Logging
+description: Configure request logging for monitoring and debugging.
+---
+
+Rustinx can log every request to a file. Logging is disabled by default.
+
+## Enable Logging
+
+```toml title="rustinx.toml"
+[logging]
+enabled = true
+path = "/var/log/rustinx/access.log"
+timezone = "+01:00"
+```
+
+## Settings
+
+| Setting | Default | Description |
+| --- | --- | --- |
+| `enabled` | `false` | Turn on access logging |
+| `path` | `/var/log/rustinx/access.log` | Where to write the log file |
+| `timezone` | `UTC` | Timezone offset for timestamps |
+
+## Timezone
+
+Set the timezone offset for log timestamps. Use UTC offset format:
+
+| Location | Offset |
+| --- | --- |
+| UTC | `UTC` or `+00:00` |
+| US Eastern | `-05:00` |
+| US Pacific | `-08:00` |
+| Japan (JST) | `+09:00` |
+| Central Europe (CET) | `+01:00` |
+
+```toml
+[logging]
+enabled = true
+timezone = "+01:00"  # Central European Time
+```
+
+If `timezone` is not set, timestamps are in UTC.
+
+## Log Format
+
+Each line contains:
+
+```log
+[hh:mmAM/PM | dd/mm] client_ip METHOD /path status response_time
+```
+
+Example output with `timezone = "+01:00"` (CET):
+
+```log
+[03:37PM | 23/05] 192.168.1.1 GET /index.html 200 0.3ms
+[03:37PM | 23/05] 10.0.0.5 GET /assets/style.css 200 0.1ms
+[03:38PM | 23/05] 172.16.0.1 HEAD /api/health 200 0.0ms
+[03:38PM | 23/05] 192.168.1.1 GET /missing 404 0.0ms
+```
+
+Client IPs come from `X-Forwarded-For` when `behind_proxy = true`, otherwise from the TCP connection.
+
+## Docker Setup
+
+When running in Docker, mount a volume for the log directory:
+
+```yaml title="docker-compose.yml"
+services:
+  web:
+    image: ghcr.io/shadowarcanist/rustinx:v1.0
+    volumes:
+      - ./rustinx.toml:/etc/rustinx/rustinx.toml:ro
+      - ./dist:/static:ro
+      - ./logs:/var/log/rustinx    # writable log volume
+```
+
+The container filesystem is read-only, so you must mount the log directory separately.
+
+## How It Works Internally
+
+Logging uses an async channel to avoid blocking request handling:
+
+- Each request sends a log line to a bounded channel (4096 entries)
+- A dedicated writer task drains the channel and writes to disk
+- If the channel fills up during traffic spikes, excess log entries are dropped
+- Drop events are reported to stderr with a count
+- On shutdown, the writer writes any remaining entries to disk
+
+This means logging never slows down request serving, even on slow disks.
+
+## Log Rotation
+
+Rustinx does not rotate logs internally. Use your container runtime's log driver or an external tool:
+
+```json title="Docker daemon.json"
+{
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3"
+  }
+}
+```
+
+Or use `logrotate` with the `copytruncate` directive for the mounted log file.

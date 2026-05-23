@@ -1,0 +1,103 @@
+---
+title: SPA Application
+description: Serve a React, Vue, or Angular app with client-side routing.
+---
+
+This example shows how to serve a single-page application with Rustinx.
+
+## Project Structure
+
+After building your frontend app:
+
+<Files>
+  <Folder name="my-app" defaultOpen>
+    <Folder name="dist" defaultOpen>
+      <File name="index.html" />
+      <Folder name="assets" defaultOpen>
+        <File name="app-abc123.js" />
+        <File name="style-def456.css" />
+        <File name="logo.png" />
+      </Folder>
+    </Folder>
+    <File name="rustinx.toml" />
+    <File name="Dockerfile" />
+  </Folder>
+</Files>
+
+## Config
+
+```toml title="rustinx.toml"
+[server]
+listen = "0.0.0.0:9090"
+behind_proxy = true
+trusted_proxy_depth = 2
+
+[[vhost]]
+hostnames = ["_"]
+root = "/static"
+spa = true
+spa_ignore = ["/assets"]
+```
+
+Key settings:
+- `spa = true` makes all unknown paths serve `index.html`
+- `spa_ignore = ["/assets"]` ensures asset paths return 404 instead of index.html (prevents broken JS/CSS from silently serving HTML)
+
+## Dockerfile
+
+```dockerfile title="Dockerfile"
+FROM node:22-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+FROM ghcr.io/shadowarcanist/rustinx:v1.0
+COPY --from=builder /app/dist /static
+COPY rustinx.toml /etc/rustinx/rustinx.toml
+```
+
+## Docker Compose
+
+```yaml title="docker-compose.yml"
+services:
+  app:
+    build: .
+    expose:
+      - "9090"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.app.rule=Host(`app.example.com`)"
+      - "traefik.http.services.app.loadbalancer.server.port=9090"
+```
+
+## How Routing Works
+
+| Request | What Happens |
+| --- | --- |
+| `/` | Serves `index.html` |
+| `/dashboard` | Serves `index.html` (SPA route) |
+| `/settings/profile` | Serves `index.html` (SPA route) |
+| `/assets/app-abc123.js` | Serves the JS file |
+| `/assets/missing.js` | Returns 404 (not SPA fallback) |
+
+Your JavaScript router (`react-router`, `vue-router`, etc.) handles the actual page rendering on the client side.
+
+## Custom 404 for Asset Errors
+
+```toml
+[[vhost]]
+hostnames = ["_"]
+root = "/static"
+spa = true
+spa_ignore = ["/assets"]
+custom_404 = "404.html"
+```
+
+Create `dist/404.html` with a user-friendly error page. It only shows for paths in `spa_ignore` that don't match real files.

@@ -1,0 +1,102 @@
+# Rustinx — ultra-lightweight static web server
+# Full config reference with all options shown
+
+[server]
+listen = "0.0.0.0:9090"
+behind_proxy = true               # ONLY enable behind a trusted proxy — NEVER with published ports
+trusted_proxy_depth = 2            # Number of trusted proxy hops (e.g. Cloudflare + Traefik = 2)
+                                   # Prevents XFF spoofing by reading Nth IP from the right
+
+# No "Server" header is sent — server identity is hidden by default.
+
+[logging]
+enabled = false                    # Set true + mount /var/log/rustinx in Docker
+# path = "/var/log/rustinx/access.log"
+# timezone = "+01:00"              # UTC offset for timestamps (default: UTC)
+
+# Defaults applied to all vhosts (each vhost can override)
+[defaults]
+block_dot_paths = true             # Block /.env, /.git, /.htaccess, etc.
+etag = true                        # ETag + 304 Not Modified support
+allowed_methods = ["GET", "HEAD"]  # Reject POST/PUT/DELETE/etc.
+
+[defaults.headers]
+X-Content-Type-Options = "nosniff"
+X-Frame-Options = "DENY"
+Content-Security-Policy = "default-src 'self'; frame-ancestors 'none'"
+Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
+Referrer-Policy = "strict-origin-when-cross-origin"
+
+
+# ─── Virtual Hosts ────────────────────────────────────────────
+
+# SPA with external redirect file
+# Redirects loaded from separate TOML (see examples/redirects/)
+[[vhost]]
+hostnames = ["links.shadowarcanist.com"]
+root = "/static"
+spa = true
+redirects_file = "/etc/rustinx/redirects/shadowarcanist.toml"
+
+[vhost.headers]
+Access-Control-Allow-Origin = "*"
+
+
+# SPA with external redirect file (different brand)
+[[vhost]]
+hostnames = ["links.airoflare.com"]
+root = "/static"
+spa = true
+redirects_file = "/etc/rustinx/redirects/airoflare.toml"
+
+[vhost.headers]
+Access-Control-Allow-Origin = "*"
+
+
+# SPA with custom 404 + dot-path blocking
+[[vhost]]
+hostnames = ["roadmap.airoflare.com"]
+root = "/static"
+spa = true
+custom_404 = "404/index.html"      # Relative to root: /static/404/index.html
+
+[vhost.headers]
+X-Frame-Options = "SAMEORIGIN"
+Permissions-Policy = "geolocation=(), microphone=()"
+
+
+# SPA with asset passthrough (assets return 404, not SPA fallback)
+[[vhost]]
+hostnames = ["envix.shadowarcanist.com", "synergy.shadowarcanist.com"]
+root = "/static"
+spa = true
+spa_ignore = ["/assets/"]          # /assets/missing.js → 404 (not index.html)
+
+[vhost.headers]
+X-Frame-Options = "SAMEORIGIN"
+Permissions-Policy = "geolocation=(self), microphone=()"
+
+
+# Deny-all with specific route
+# Useful when a domain should only serve specific pages + redirects
+[[vhost]]
+hostnames = ["restricted.example.com"]
+root = "/static"
+deny_all = true                    # Everything returns 403 except routes + redirects
+
+[[vhost.redirects]]
+path = "/go"
+url = "https://example.com"
+
+[[vhost.routes]]
+path = "/landing"                  # /landing and /landing/* serve this file
+serve = "landing.html"
+
+
+# ─── Single-site mode ────────────────────────────────────────
+# For simple apps (one site per container), use catch-all hostname:
+#
+# [[vhost]]
+# hostnames = ["_"]                # Matches any hostname
+# root = "/static"
+# spa = true

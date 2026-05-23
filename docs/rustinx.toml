@@ -1,0 +1,15 @@
+[defaults]
+block_dot_paths = true
+etag = true
+allowed_methods = ["GET", "HEAD"]
+
+[defaults.headers]
+X-Content-Type-Options = "nosniff"
+X-Frame-Options = "DENY"
+Referrer-Policy = "strict-origin-when-cross-origin"
+Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
+
+[[vhost]]
+hostnames = ["_"]
+root = "/static"
+index = "index.html"

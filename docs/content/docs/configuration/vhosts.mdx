@@ -1,0 +1,142 @@
+---
+title: Virtual Hosts
+description: Serve multiple sites from one Rustinx instance.
+---
+
+Virtual hosts let you serve different content based on the `Host` header in the request. Each `[[vhost]]` block defines one site.
+
+## Basic Vhost
+
+```toml title="rustinx.toml"
+[[vhost]]
+hostnames = ["mysite.com"]
+root = "/static"
+```
+
+## Catch-All Vhost
+
+Use `_` as the hostname to match any request that doesn't match another vhost:
+
+```toml
+[[vhost]]
+hostnames = ["_"]
+root = "/static"
+```
+
+This is the recommended setup for single-site containers.
+
+## Multiple Vhosts
+
+Serve several sites from one container:
+
+```toml title="rustinx.toml"
+[[vhost]]
+hostnames = ["blog.example.com"]
+root = "/static/blog"
+spa = true
+
+[[vhost]]
+hostnames = ["docs.example.com"]
+root = "/static/docs"
+
+[[vhost]]
+hostnames = ["_"]
+root = "/static/default"
+```
+
+Requests are matched in this order:
+1. Exact hostname match
+2. Wildcard match
+3. Catch-all `_`
+
+## Wildcard Hostnames
+
+Match all subdomains of a domain:
+
+```toml
+[[vhost]]
+hostnames = ["*.example.com"]
+root = "/static"
+```
+
+Rules:
+- `*.example.com` matches `blog.example.com`, `app.example.com`, etc.
+- It does **not** match the apex `example.com` — add it as a separate exact hostname if needed
+- Wildcards must have at least two labels: `*.example.com` is valid, `*.com` is rejected
+
+## Multiple Hostnames Per Vhost
+
+One vhost can respond to several hostnames:
+
+```toml
+[[vhost]]
+hostnames = ["example.com", "www.example.com"]
+root = "/static"
+```
+
+## Vhost Settings
+
+Each vhost supports these options:
+
+```toml
+[[vhost]]
+hostnames = ["mysite.com"]
+root = "/static"                  # Directory to serve files from
+index = "index.html"              # Default file for directories
+spa = false                       # SPA fallback mode
+spa_ignore = ["/assets"]          # Paths that skip SPA fallback
+block_dot_paths = true            # Block .env, .git, etc.
+etag = true                       # ETag caching headers
+allowed_methods = ["GET", "HEAD"] # Allowed HTTP methods
+deny_all = false                  # Block all static file access
+custom_404 = "404.html"           # Custom 404 error page
+redirects_file = "/etc/rustinx/redirects/mysite.toml"
+```
+
+All settings except `hostnames` and `root` are optional and inherit from `[defaults]`.
+
+## Routes
+
+Routes serve a specific file for a specific URL path. They are checked before normal static file serving:
+
+```toml
+[[vhost]]
+hostnames = ["mysite.com"]
+root = "/static"
+deny_all = true
+
+[[vhost.routes]]
+path = "/landing"
+serve = "landing.html"
+
+[[vhost.routes]]
+path = "/about"
+serve = "about.html"
+```
+
+Routes use prefix matching. `/landing` matches both `/landing` and `/landing/anything`. Routes are sorted longest-first, so `/app/admin` is checked before `/app`.
+
+## deny_all Mode
+
+When `deny_all = true`, normal static file serving is disabled. Only configured routes and redirects work:
+
+```toml
+[[vhost]]
+hostnames = ["restricted.example.com"]
+root = "/static"
+deny_all = true
+
+# Only this specific path serves content
+[[vhost.routes]]
+path = "/public"
+serve = "public.html"
+
+# Redirects still work
+[[vhost.redirects]]
+path = "/go"
+url = "https://example.com"
+```
+
+- `GET /` returns `403 Forbidden`
+- `GET /public` returns the file
+- `GET /go` returns a redirect

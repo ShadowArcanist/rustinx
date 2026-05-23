@@ -1,0 +1,31 @@
+# Build
+app/target/
+
+# OS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Docs
+docs/node_modules/
+docs/.cache/
+docs/.vercel/
+docs/.output/
+docs/.nitro/
+docs/.tanstack/
+docs/.source/
+docs/build/
+docs/api/
+docs/server/build/
+docs/public/build/
+docs/test-results/
+docs/playwright-report/
+docs/blob-report/
+docs/playwright/.cache/

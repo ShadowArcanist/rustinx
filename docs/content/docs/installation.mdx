@@ -1,0 +1,70 @@
+---
+title: Installation
+description: How to install Rustinx on your system.
+---
+
+<Tabs items={["Docker Image", "Build from Source", "Build Docker Image"]}>
+  <Tab value="Docker Image">
+    The recommended way to use Rustinx. The image is built from scratch (no OS, no shell) and runs as a non-root user.
+
+    ```bash
+    docker pull ghcr.io/shadowarcanist/rustinx:v1.0
+    ```
+
+    Image details:
+    - **Base**: `scratch` (empty image, no OS packages)
+    - **User**: `65534:65534` (nobody)
+    - **Size**: Under 2MB
+    - **Port**: 9090
+  </Tab>
+  <Tab value="Build from Source">
+    Requires the [Rust toolchain](https://rustup.rs/).
+
+    ```bash
+    git clone https://github.com/shadowarcanist/rustinx.git
+    cd rustinx/app
+    cargo build --release
+    ```
+
+    The release binary is at `app/target/release/rustinx`.
+
+    ### Build size optimizations
+
+    The release profile is already configured for minimal binary size:
+
+    ```toml title="Cargo.toml"
+    [profile.release]
+    opt-level = "z"     # Optimize for size
+    lto = true          # Link-time optimization
+    codegen-units = 1   # Better optimization
+    panic = "abort"     # Smaller binary
+    strip = true        # Remove debug symbols
+    ```
+  </Tab>
+  <Tab value="Build Docker Image">
+    From the repository root:
+
+    ```bash
+    docker build -t rustinx .
+    ```
+
+    This uses a multi-stage build:
+    1. **Builder stage**: Compiles Rustinx with Alpine + musl for static linking
+    2. **Runtime stage**: Copies the binary into a `scratch` image
+  </Tab>
+</Tabs>
+
+## CLI Usage
+
+```shell
+rustinx - ultra-lightweight static web server
+
+Usage: rustinx [OPTIONS]
+
+Options:
+  -c, --config <path>  Config file (default: /etc/rustinx/rustinx.toml)
+  -v, --version        Print version
+  -h, --help           Print help
+```
+
+If no config file is found at the default path, Rustinx starts with built-in defaults and serves files from `/static`.

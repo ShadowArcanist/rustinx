@@ -1,0 +1,148 @@
+---
+title: Traefik Integration
+description: Run Rustinx behind Traefik reverse proxy.
+---
+
+Rustinx is designed to sit behind Traefik. Traefik handles TLS, routing, and load balancing. Rustinx serves static files.
+
+## Architecture
+
+```text
+Internet → Traefik → Rustinx (:9090)
+```
+
+## Docker Compose with Traefik
+
+```yaml title="docker-compose.yml"
+services:
+  web:
+    image: ghcr.io/shadowarcanist/rustinx:v1.0
+    expose:
+      - "9090"
+    volumes:
+      - ./rustinx.toml:/etc/rustinx/rustinx.toml:ro
+      - ./dist:/static:ro
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.myapp.rule=Host(`myapp.example.com`)"
+      - "traefik.http.services.myapp.loadbalancer.server.port=9090"
+```
+
+## Rustinx Config for Traefik
+
+When behind Traefik, enable proxy mode to get real client IPs in logs:
+
+```toml title="rustinx.toml"
+[server]
+listen = "0.0.0.0:9090"
+behind_proxy = true
+trusted_proxy_depth = 1   # Just Traefik
+
+[[vhost]]
+hostnames = ["_"]
+root = "/static"
+spa = true
+```
+
+### With Cloudflare in Front
+
+If Cloudflare sits in front of Traefik, increase the proxy depth:
+
+```toml
+[server]
+behind_proxy = true
+trusted_proxy_depth = 2   # Cloudflare + Traefik
+```
+
+The depth tells Rustinx how many IPs to skip from the right of the `X-Forwarded-For` chain to find the real client IP.
+
+## Multiple Sites
+
+Run several Rustinx containers behind one Traefik instance:
+
+```yaml title="docker-compose.yml"
+services:
+  blog:
+    image: ghcr.io/shadowarcanist/rustinx:v1.0
+    volumes:
+      - ./blog/dist:/static:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.blog.rule=Host(`blog.example.com`)"
+      - "traefik.http.services.blog.loadbalancer.server.port=9090"
+
+  docs:
+    image: ghcr.io/shadowarcanist/rustinx:v1.0
+    volumes:
+      - ./dist:/static:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.docs.rule=Host(`docs.example.com`)"
+      - "traefik.http.services.docs.loadbalancer.server.port=9090"
+```
+
+Each container uses the default config (no TOML file needed). Traefik handles hostname routing.
+
+## Path Prefix Handling
+
+If Traefik routes by path prefix (e.g., `PathPrefix('/app')`), you need to decide whether Traefik strips the prefix before forwarding to Rustinx.
+
+<Tabs items={["With StripPrefix (Recommended)", "Without StripPrefix"]}>
+  <Tab value="With StripPrefix (Recommended)">
+    Traefik removes the prefix before forwarding. Rustinx sees clean paths.
+
+    ```yaml title="docker-compose.yml"
+    labels:
+      - "traefik.http.routers.app.rule=Host(`example.com`) && PathPrefix(`/app`)"
+      - "traefik.http.middlewares.app-strip.stripprefix.prefixes=/app"
+      - "traefik.http.routers.app.middlewares=app-strip"
+    ```
+
+    Request flow:
+    - Client requests `/app/page`
+    - Traefik strips `/app` → forwards `/page`
+    - Rustinx serves `root/page`
+
+    Your static files go directly in the root directory — no nesting needed.
+  </Tab>
+  <Tab value="Without StripPrefix">
+    Traefik forwards the full path including the prefix. Rustinx sees `/app/page`.
+
+    ```yaml title="docker-compose.yml"
+    labels:
+      - "traefik.http.routers.app.rule=Host(`example.com`) && PathPrefix(`/app`)"
+    ```
+
+    Request flow:
+    - Client requests `/app/page`
+    - Traefik forwards `/app/page` as-is
+    - Rustinx serves `root/app/page`
+
+    Your static files must be nested under the prefix directory:
+
+    <Files>
+      <Folder name="static" defaultOpen>
+        <Folder name="app" defaultOpen>
+          <File name="index.html" />
+          <Folder name="assets">
+            <File name="style.css" />
+          </Folder>
+        </Folder>
+      </Folder>
+    </Files>
+  </Tab>
+</Tabs>
+
+For hostname-only routing (`Host('app.example.com')` without `PathPrefix`), no prefix handling is needed.
+
+## Important Notes
+
+- Use `expose`, not `ports` — Traefik connects to Rustinx over the Docker network
+- Set `behind_proxy = true` only when Rustinx is not directly reachable
+- Traefik handles TLS certificates — Rustinx does not need any TLS config
+- Set up Traefik's own timeouts to match or be stricter than Rustinx's `connection_timeout`

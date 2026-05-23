@@ -1,0 +1,111 @@
+---
+title: Getting Started
+description: Get Rustinx running in under 5 minutes.
+---
+
+This guide walks you through serving your first static site with Rustinx.
+
+## Prerequisites
+
+You need one of these:
+- **Docker** (recommended for production)
+- **Rust toolchain** (for building from source)
+
+## Setup
+
+Put your HTML, CSS, and JavaScript files in a folder:
+
+<Files>
+  <Folder name="my-site" defaultOpen>
+    <Folder name="dist" defaultOpen>
+      <File name="index.html" />
+      <Folder name="assets" defaultOpen>
+        <File name="style.css" />
+        <File name="app.js" />
+      </Folder>
+    </Folder>
+  </Folder>
+</Files>
+
+Then choose your method:
+
+<Tabs items={["Docker (Recommended)", "Build from Source"]}>
+  <Tab value="Docker (Recommended)">
+    The fastest way to start. No Rust installation needed.
+
+    ### Run Rustinx
+
+    ```bash
+    docker run -p 9090:9090 -v ./dist:/static:ro ghcr.io/shadowarcanist/rustinx:v1.0
+    ```
+
+    Open `http://localhost:9090` in your browser.
+
+    ### Add a config file (optional)
+
+    For more control, create a `rustinx.toml`:
+
+    ```toml title="rustinx.toml"
+    [server]
+    listen = "0.0.0.0:9090"
+
+    [[vhost]]
+    hostnames = ["_"]
+    root = "/static"
+    spa = true
+    ```
+
+    Mount it into the container:
+
+    ```bash
+    docker run -p 9090:9090 \
+      -v ./rustinx.toml:/etc/rustinx/rustinx.toml:ro \
+      -v ./dist:/static:ro \
+      ghcr.io/shadowarcanist/rustinx:v1.0
+    ```
+  </Tab>
+  <Tab value="Build from Source">
+    ### Clone and build
+
+    ```bash
+    git clone https://github.com/shadowarcanist/rustinx.git
+    cd rustinx/app
+    cargo build --release
+    ```
+
+    The binary is at `app/target/release/rustinx` (under 800KB).
+
+    ### Create a config file
+
+    ```toml title="rustinx.toml"
+    [[vhost]]
+    hostnames = ["_"]
+    root = "./public"
+    ```
+
+    ### Run it
+
+    ```bash
+    ./target/release/rustinx --config rustinx.toml
+    ```
+  </Tab>
+</Tabs>
+
+## What You Get by Default
+
+Without any configuration, Rustinx applies these secure defaults:
+
+| Setting | Default |
+| --- | --- |
+| Port | 9090 |
+| Allowed methods | GET and HEAD only |
+| Dot-path blocking | Enabled (blocks `.env`, `.git`, etc.) |
+| ETag caching | Enabled |
+| SPA mode | Disabled |
+| Security headers | All enabled (CSP, HSTS, XFO, etc.) |
+
+## Next Steps
+
+- [Configuration reference](/configuration) for all available options
+- [Docker deployment](/deployment/docker) for production setup
+- [SPA mode](/features/spa-mode) if you're serving a React/Vue/Angular app

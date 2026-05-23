@@ -1,0 +1,10 @@
+{
+  "pages": [
+    "index",
+    "server",
+    "vhosts",
+    "redirects",
+    "headers",
+    "logging"
+  ]
+}

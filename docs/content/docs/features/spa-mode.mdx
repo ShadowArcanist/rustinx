@@ -1,0 +1,92 @@
+---
+title: SPA Mode
+description: Serve single-page applications with client-side routing.
+---
+
+SPA (Single Page Application) mode makes Rustinx serve your `index.html` for any URL that doesn't match a real file. This is how React, Vue, Angular, and other client-side routers work.
+
+## Enable SPA Mode
+
+```toml title="rustinx.toml"
+[[vhost]]
+hostnames = ["_"]
+root = "/static"
+spa = true
+```
+
+## How It Works
+
+With SPA mode enabled, the request flow changes:
+
+1. Try to serve the exact file
+2. Try to serve a directory index
+3. **If neither exists, serve `root/index.html` with status 200**
+4. If `index.html` also doesn't exist, return 404
+
+This means `/app/dashboard/settings` serves `index.html`, and your JavaScript router handles the path client-side.
+
+## Excluding Paths from SPA Fallback
+
+Some paths should return 404 instead of falling back to `index.html`. Use `spa_ignore` for this:
+
+```toml
+[[vhost]]
+hostnames = ["_"]
+root = "/static"
+spa = true
+spa_ignore = ["/assets", "/api"]
+```
+
+Now:
+- `/app/dashboard` → serves `index.html` (SPA fallback)
+- `/assets/style.css` → serves the file or returns 404 (no fallback)
+- `/api/users` → returns 404 (no fallback)
+
+The matching is path-segment aware:
+- `spa_ignore = ["/api"]` ignores `/api` and `/api/users` but NOT `/api2`
+
+## Common SPA Setup
+
+A typical SPA deployment with a build tool like Vite:
+
+<Files>
+  <Folder name="dist" defaultOpen>
+    <File name="index.html" />
+    <Folder name="assets" defaultOpen>
+      <File name="style-abc123.css" />
+      <File name="app-def456.js" />
+      <File name="logo.png" />
+    </Folder>
+  </Folder>
+</Files>
+
+```toml title="rustinx.toml"
+[[vhost]]
+hostnames = ["_"]
+root = "/static"
+spa = true
+spa_ignore = ["/assets"]
+```
+
+This serves:
+- `/` → `index.html`
+- `/login` → `index.html` (SPA route)
+- `/dashboard/settings` → `index.html` (SPA route)
+- `/assets/style-abc123.css` → the CSS file
+- `/assets/missing.js` → 404 (not SPA fallback)
+
+## SPA with Custom 404
+
+If you have a custom 404 page, it only applies when SPA fallback also fails:
+
+```toml
+[[vhost]]
+hostnames = ["_"]
+root = "/static"
+spa = true
+spa_ignore = ["/assets"]
+custom_404 = "404.html"
+```
+
+- `/unknown-route` → `index.html` (SPA handles it)
+- `/assets/missing.js` → `404.html` with status 404

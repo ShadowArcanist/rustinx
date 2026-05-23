@@ -1,0 +1,112 @@
+---
+title: Docker Deployment
+description: Deploy Rustinx as a Docker container.
+---
+
+Rustinx is designed to run in Docker. The official image is built from `scratch` with no OS, no shell, and no unnecessary packages.
+
+## Pull the Image
+
+```bash
+docker pull ghcr.io/shadowarcanist/rustinx:v1.0
+```
+
+## Run
+
+<Tabs items={["Quick Run", "With Config File", "Docker Compose", "Multi-Stage Build"]}>
+  <Tab value="Quick Run">
+    Serve files from a local directory with zero configuration:
+
+    ```bash
+    docker run -p 9090:9090 \
+      -v ./dist:/static:ro \
+      ghcr.io/shadowarcanist/rustinx:v1.0
+    ```
+  </Tab>
+  <Tab value="With Config File">
+    Mount a config file for more control:
+
+    ```bash
+    docker run -p 9090:9090 \
+      -v ./rustinx.toml:/etc/rustinx/rustinx.toml:ro \
+      -v ./dist:/static:ro \
+      ghcr.io/shadowarcanist/rustinx:v1.0
+    ```
+  </Tab>
+  <Tab value="Docker Compose">
+    ```yaml title="docker-compose.yml"
+    services:
+      web:
+        image: ghcr.io/shadowarcanist/rustinx:v1.0
+        expose:
+          - "9090"
+        volumes:
+          - ./rustinx.toml:/etc/rustinx/rustinx.toml:ro
+          - ./dist:/static:ro
+        read_only: true
+        cap_drop:
+          - ALL
+        security_opt:
+          - no-new-privileges:true
+    ```
+  </Tab>
+  <Tab value="Multi-Stage Build">
+    Build your frontend app and serve it with Rustinx in one Dockerfile:
+
+    ```dockerfile title="Dockerfile"
+    FROM node:22-alpine AS builder
+    WORKDIR /app
+    COPY package*.json ./
+    RUN npm ci
+    COPY . .
+    RUN npm run build
+
+    FROM ghcr.io/shadowarcanist/rustinx:v1.0
+    COPY --from=builder /app/dist /static
+    COPY rustinx.toml /etc/rustinx/rustinx.toml
+    ```
+  </Tab>
+</Tabs>
+
+## Volume Mounts
+
+| Mount | Purpose | Writable? |
+| --- | --- | --- |
+| `/etc/rustinx/rustinx.toml` | Config file | No (`:ro`) |
+| `/static` | Static files | No (`:ro`) |
+| `/etc/rustinx/redirects/` | Redirect files | No (`:ro`) |
+| `/var/log/rustinx/` | Access logs | Yes (if logging enabled) |
+
+## Security Recommendations
+
+The official image already runs as non-root on a read-only filesystem. For maximum hardening:
+
+```yaml
+services:
+  web:
+    image: ghcr.io/shadowarcanist/rustinx:v1.0
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    # Do NOT publish ports when behind a proxy
+    expose:
+      - "9090"
+```
+
+Never use `ports: "9090:9090"` when `behind_proxy = true`. Let your reverse proxy route traffic instead.
+
+## Health Checks
+
+Rustinx responds to `HEAD /` requests. Use this for Docker health checks:
+
+```yaml
+healthcheck:
+  test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/"]
+  interval: 30s
+  timeout: 5s
+  retries: 3
+```
+
+Note: The `scratch` image has no `wget` or `curl`. Use a sidecar or external health checker, or add a minimal tool in a custom image.

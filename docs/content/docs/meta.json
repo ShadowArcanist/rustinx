@@ -1,0 +1,17 @@
+{
+  "pages": [
+    "---Onboarding---",
+    "getting-started",
+    "installation",
+    "---Configuration---",
+    "...configuration",
+    "---Generator---",
+    "...generator",
+    "---Features---",
+    "...features",
+    "---Deployment---",
+    "...deployment",
+    "---Examples---",
+    "...examples"
+  ]
+}

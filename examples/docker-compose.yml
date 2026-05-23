@@ -1,0 +1,25 @@
+# Example: Static site behind Traefik
+# Do NOT publish ports directly when behind_proxy = true
+services:
+  web:
+    image: ghcr.io/shadowarcanist/rustinx:v1.0
+    # Or build from source:
+    # build: .
+    expose:
+      - "9090"
+    volumes:
+      - ./rustinx.toml:/etc/rustinx/rustinx.toml:ro
+      - ./dist:/static:ro
+      # If using redirect files:
+      # - ./redirects:/etc/rustinx/redirects:ro
+      # If access logging enabled:
+      # - ./logs:/var/log/rustinx
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.myapp.rule=Host(`myapp.example.com`)"
+      - "traefik.http.services.myapp.loadbalancer.server.port=9090"

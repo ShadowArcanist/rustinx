@@ -1,0 +1,96 @@
+---
+title: Security Headers
+description: Configure HTTP security headers on responses.
+---
+
+Rustinx adds security headers to every response by default. You can customize them per vhost.
+
+## Default Headers
+
+These headers are added to every response automatically:
+
+| Header | Default Value |
+| --- | --- |
+| `X-Content-Type-Options` | `nosniff` |
+| `X-Frame-Options` | `DENY` |
+| `Content-Security-Policy` | `default-src 'self'; frame-ancestors 'none'` |
+| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains; preload` |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` |
+
+No `Server` header is sent. Rustinx does not disclose its identity.
+
+## Customizing Headers
+
+Override defaults in `[defaults.headers]` or `[vhost.headers]`:
+
+```toml title="rustinx.toml"
+[defaults.headers]
+X-Content-Type-Options = "nosniff"
+X-Frame-Options = "DENY"
+Content-Security-Policy = "default-src 'self'; frame-ancestors 'none'"
+Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
+Referrer-Policy = "strict-origin-when-cross-origin"
+
+[[vhost]]
+hostnames = ["mysite.com"]
+root = "/static"
+
+# Override X-Frame-Options for this vhost only
+[vhost.headers]
+X-Frame-Options = "SAMEORIGIN"
+```
+
+Vhost headers override defaults with the same name (case-insensitive).
+
+## Adding Custom Headers
+
+Add any HTTP header you need:
+
+```toml
+[vhost.headers]
+Access-Control-Allow-Origin = "https://mysite.com"
+Permissions-Policy = "geolocation=(), microphone=(), camera=()"
+```
+
+## Reserved Headers
+
+These headers cannot be set through config because Rustinx manages them internally:
+
+`Content-Length`, `Transfer-Encoding`, `Connection`, `Keep-Alive`, `Upgrade`, `TE`, `Trailer`, `Proxy-Authenticate`, `Proxy-Authorization`, `Host`, `Date`, `Location`, `Allow`, `ETag`, `Content-Type`, `Set-Cookie`, `Set-Cookie2`
+
+Setting a reserved header causes a startup error:
+
+```ansi
+[rustinx] config error: header 'Content-Length' is reserved and cannot be set via config
+```
+
+## Header Validation
+
+Rustinx validates security headers at startup to prevent accidental weakening:
+
+### X-Frame-Options
+Must be `DENY` or `SAMEORIGIN`. Other values are rejected.
+
+### X-Content-Type-Options
+Must be `nosniff`.
+
+### Content-Security-Policy
+- Must contain `default-src` directive
+- Must contain `frame-ancestors` directive
+- `frame-ancestors` must be `'none'` or `'self'`
+- Dangerous sources are blocked: `*`, `'unsafe-inline'`, `'unsafe-eval'`, `data:`, `blob:`, `http:`, `https:`, wildcard hosts
+- All CSP source tokens are validated for correct syntax
+- Duplicate directives are rejected
+
+### Strict-Transport-Security
+- Must contain a valid `max-age` with a positive number
+- `max-age=0` is rejected (disables HSTS)
+- Duplicate `max-age` directives are rejected
+
+### Referrer-Policy
+Must be one of: `no-referrer`, `no-referrer-when-downgrade`, `origin`, `origin-when-cross-origin`, `same-origin`, `strict-origin`, `strict-origin-when-cross-origin`. The value `unsafe-url` is blocked.
+
+### CORS Safety
+- `Access-Control-Allow-Origin: *` with `Access-Control-Allow-Credentials: true` is rejected
+- `Access-Control-Allow-Origin: *` with `Access-Control-Allow-Private-Network: true` is rejected
+- `Access-Control-Allow-Origin: null` is rejected

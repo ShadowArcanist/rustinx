@@ -1,0 +1,101 @@
+---
+title: Configuration Overview
+description: How Rustinx configuration works.
+---
+
+Rustinx uses a single TOML file for all configuration. By default, it looks for `/etc/rustinx/rustinx.toml`. You can change this with the `--config` flag.
+
+## Config Structure
+
+A Rustinx config file has four sections:
+
+```toml title="rustinx.toml"
+# Server-level settings
+[server]
+listen = "0.0.0.0:9090"
+
+# Access logging
+[logging]
+enabled = false
+
+# Default settings for all virtual hosts
+[defaults]
+block_dot_paths = true
+
+# Virtual hosts (one or more)
+[[vhost]]
+hostnames = ["mysite.com"]
+root = "/static"
+```
+
+## Minimal Config
+
+The smallest useful config file:
+
+```toml title="rustinx.toml"
+[[vhost]]
+hostnames = ["_"]
+root = "/static"
+```
+
+This serves files from `/static` on port 9090, matching any hostname. All security defaults are applied automatically.
+
+## How Defaults Work
+
+The `[defaults]` section sets values that apply to every virtual host. Each vhost can override these values.
+
+```toml title="rustinx.toml"
+[defaults]
+block_dot_paths = true
+etag = true
+allowed_methods = ["GET", "HEAD"]
+
+[defaults.headers]
+X-Content-Type-Options = "nosniff"
+X-Frame-Options = "DENY"
+
+# This vhost inherits all defaults
+[[vhost]]
+hostnames = ["site-a.com"]
+root = "/static/site-a"
+
+# This vhost overrides X-Frame-Options
+[[vhost]]
+hostnames = ["site-b.com"]
+root = "/static/site-b"
+
+[vhost.headers]
+X-Frame-Options = "SAMEORIGIN"
+```
+
+## Config Validation
+
+Rustinx validates the entire config file at startup. If anything is wrong, it prints a clear error and exits before serving any traffic.
+
+Things that are checked:
+- All hostnames are valid DNS names
+- No duplicate hostnames across vhosts
+- All file paths are safe (no `..`, no dotfiles, no absolute paths in targets)
+- Security headers have valid values
+- Redirect URLs are safe (HTTPS only, no protocol-relative, no credentials)
+- Server limits are within bounds
+- Root directories exist and are accessible
+- Unknown config keys are rejected (catches typos)
+
+```shell
+$ rustinx --config bad.toml
+[rustinx] config error: method 'OPTIONS' not supported — only GET and HEAD are valid for static serving
+```
+
+## Unknown Fields
+
+Rustinx rejects unknown config keys. This catches typos that could silently disable security features:
+
+```toml
+[server]
+max_connectionz = 5  # typo: should be max_connections
+```
+
+```ansi
+[rustinx] config error: parse config: unknown field `max_connectionz`
+```

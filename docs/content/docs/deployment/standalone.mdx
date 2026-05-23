@@ -1,0 +1,86 @@
+---
+title: Standalone Usage
+description: Run Rustinx without Docker for development or testing.
+---
+
+You can run Rustinx directly on your machine without Docker.
+
+## Build
+
+```bash
+cd app
+cargo build --release
+```
+
+The binary is at `app/target/release/rustinx`.
+
+## Run
+
+<Tabs items={["Default", "Development", "Systemd Service"]}>
+  <Tab value="Default">
+    Create a minimal config and start serving:
+
+    ```toml title="rustinx.toml"
+    [[vhost]]
+    hostnames = ["_"]
+    root = "./public"
+    ```
+
+    ```bash
+    ./target/release/rustinx --config rustinx.toml
+    ```
+
+    The server starts on `0.0.0.0:9090`.
+  </Tab>
+  <Tab value="Development">
+    For local development, bind to localhost with a custom port:
+
+    ```toml title="dev.toml"
+    [server]
+    listen = "127.0.0.1:3000"
+
+    [[vhost]]
+    hostnames = ["_"]
+    root = "./dist"
+    spa = true
+    ```
+
+    ```bash
+    ./target/release/rustinx --config dev.toml
+    ```
+  </Tab>
+  <Tab value="Systemd Service">
+    For Linux servers running Rustinx directly (without Docker):
+
+    ```ini title="/etc/systemd/system/rustinx.service"
+    [Unit]
+    Description=Rustinx Static Web Server
+    After=network.target
+
+    [Service]
+    Type=simple
+    ExecStart=/usr/local/bin/rustinx --config /etc/rustinx/rustinx.toml
+    Restart=on-failure
+    User=www-data
+    Group=www-data
+    NoNewPrivileges=true
+    ProtectSystem=strict
+    ReadOnlyPaths=/
+    ReadWritePaths=/var/log/rustinx
+
+    [Install]
+    WantedBy=multi-user.target
+    ```
+  </Tab>
+</Tabs>
+
+## Signals
+
+Rustinx handles these signals:
+
+| Signal | Action |
+| --- | --- |
+| `SIGTERM` | Graceful shutdown |
+| `SIGINT` (Ctrl+C) | Graceful shutdown |
+
+On shutdown, Rustinx stops accepting new connections, waits for active requests to finish, and writes any remaining log entries to disk before exiting.

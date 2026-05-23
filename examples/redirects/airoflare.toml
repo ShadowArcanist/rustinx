@@ -1,0 +1,44 @@
+# Redirects for links.airoflare.com
+
+# Social
+[[redirect]]
+path = "/social/youtube"
+url = "https://www.youtube.com/@airoflare/videos"
+
+[[redirect]]
+path = "/social/discord"
+url = "https://discord.com/invite/SRJS3zH3pP"
+
+[[redirect]]
+path = "/social/community"
+url = "https://discord.com/invite/SRJS3zH3pP"
+
+[[redirect]]
+path = "/social/github"
+url = "https://github.com/Airoflare"
+
+[[redirect]]
+path = "/social/twitter"
+url = "https://x.com/airoflare"
+
+[[redirect]]
+path = "/social/x"
+url = "https://x.com/airoflare"
+
+# Support
+[[redirect]]
+path = "/support-us"
+url = "https://buymeacoffee.com/shadowarcanist"
+
+# Affiliates
+[[redirect]]
+path = "/affiliate/hetrix"
+url = "https://hetrix.tools/a-111743"
+
+[[redirect]]
+path = "/affiliate/hetzner"
+url = "https://www.hetzner.com/cloud?mtm_campaign=shadowarcanist_sponsoring&mtm_medium=referral&mtm_content=sponsoring_link"
+
+[[redirect]]
+path = "/affiliate/hetznercredits"
+url = "https://hetzner.cloud/?ref=SGwV3rCRnKeg"

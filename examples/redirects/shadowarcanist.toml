@@ -1,0 +1,154 @@
+# Redirects for links.shadowarcanist.com
+
+# Social
+[[redirect]]
+path = "/social/youtube"
+url = "https://www.youtube.com/@ShadowArcanist/videos"
+
+[[redirect]]
+path = "/social/discord"
+url = "https://discord.com/invite/RFsTaG4HvN"
+
+[[redirect]]
+path = "/social/community"
+url = "https://discord.com/invite/RFsTaG4HvN"
+
+[[redirect]]
+path = "/social/linkedin"
+url = "https://www.linkedin.com/in/shadowarcanist"
+
+[[redirect]]
+path = "/social/github"
+url = "https://github.com/shadowarcanist"
+
+[[redirect]]
+path = "/social/twitter"
+url = "https://x.com/shadowarcanist"
+
+[[redirect]]
+path = "/social/x"
+url = "https://x.com/shadowarcanist"
+
+# Support
+[[redirect]]
+path = "/support-us"
+url = "https://buymeacoffee.com/shadowarcanist"
+
+[[redirect]]
+path = "/support-me"
+url = "https://buymeacoffee.com/shadowarcanist"
+
+# Tutorials
+[[redirect]]
+path = "/tutorial/synergy"
+url = "https://synergy.shadowarcanist.com"
+
+[[redirect]]
+path = "/tutorial/envix"
+url = "https://shadowarcanist.com/envix"
+
+[[redirect]]
+path = "/tutorial/sapphire"
+url = "https://synergy.shadowarcanist.com/sapphire"
+
+[[redirect]]
+path = "/tutorial/sapphire/button-message"
+url = "https://synergy.shadowarcanist.com/sapphire/tutorials/message-via-buttons"
+
+[[redirect]]
+path = "/tutorial/sapphire/dropdown-message"
+url = "https://synergy.shadowarcanist.com/sapphire/tutorials/message-via-select-menu"
+
+[[redirect]]
+path = "/tutorial/sapphire/button-roles"
+url = "https://synergy.shadowarcanist.com/sapphire/tutorials/roles-via-buttons"
+
+[[redirect]]
+path = "/tutorial/sapphire/dropdown-roles"
+url = "https://synergy.shadowarcanist.com/sapphire/tutorials/roles-via-select-menu"
+
+[[redirect]]
+path = "/tutorial/sapphire/sticky-message"
+url = "https://synergy.shadowarcanist.com/sapphire/tutorials/sticky-message"
+
+[[redirect]]
+path = "/tutorial/sapphire/ticket-system-button"
+url = "https://synergy.shadowarcanist.com/sapphire/tutorials/ticket-system-buttons-workaround/"
+
+[[redirect]]
+path = "/tutorial/sapphire/rc-block-mention"
+url = "https://synergy.shadowarcanist.com/sapphire/raw-codes/block-mention-v1"
+
+[[redirect]]
+path = "/tutorial/sapphire/rc-captcha-verification"
+url = "https://synergy.shadowarcanist.com/sapphire/raw-codes/captcha-verification-v1"
+
+[[redirect]]
+path = "/tutorial/sapphire/rc-giveaway-system"
+url = "https://synergy.shadowarcanist.com/sapphire/raw-codes/giveaway-v1"
+
+[[redirect]]
+path = "/tutorial/sapphire/rc-interaction-log"
+url = "https://synergy.shadowarcanist.com/sapphire/raw-codes/interaction-log-v1"
+
+[[redirect]]
+path = "/tutorial/sapphire/rc-message-button"
+url = "https://synergy.shadowarcanist.com/sapphire/raw-codes/message-buttons-v1"
+
+[[redirect]]
+path = "/tutorial/sapphire/rc-messages-select-menu"
+url = "https://synergy.shadowarcanist.com/sapphire/raw-codes/messages-select-menu-v1"
+
+[[redirect]]
+path = "/tutorial/sapphire/rc-automod-dms"
+url = "https://synergy.shadowarcanist.com/sapphire/raw-codes/mod-policy-dms-v1"
+
+[[redirect]]
+path = "/tutorial/sapphire/rc-mod-policy"
+url = "https://synergy.shadowarcanist.com/sapphire/raw-codes/mod-policy-v1"
+
+[[redirect]]
+path = "/tutorial/sapphire/rc-roles-updated-message"
+url = "https://synergy.shadowarcanist.com/sapphire/raw-codes/roles-updated-v1"
+
+[[redirect]]
+path = "/tutorial/sapphire/rc-server-map"
+url = "https://synergy.shadowarcanist.com/sapphire/raw-codes/server-map-v1"
+
+[[redirect]]
+path = "/tutorial/sapphire/rc-server-rules"
+url = "https://synergy.shadowarcanist.com/sapphire/raw-codes/server-rules-v1"
+
+[[redirect]]
+path = "/tutorial/sapphire/rc-staff-apps"
+url = "https://synergy.shadowarcanist.com/sapphire/raw-codes/staff-apps-v1"
+
+[[redirect]]
+path = "/tutorial/sapphire/rc-suggestions-system"
+url = "https://synergy.shadowarcanist.com/sapphire/raw-codes/suggestions-v1"
+
+[[redirect]]
+path = "/tutorial/sapphire/welcome-message-assets"
+url = "https://drive.google.com/drive/folders/15iOp40ZgAfc4-6NIX2M_BBAhSd5Oo8qI"
+
+# Discord tutorials
+[[redirect]]
+path = "/tutorial/discord"
+url = "https://synergy.shadowarcanist.com/discord"
+
+[[redirect]]
+path = "/tutorial/discord/google-forms"
+url = "https://synergy.shadowarcanist.com/discord/tutorials/google-form-to-discord-forum-post/"
+
+# Affiliates
+[[redirect]]
+path = "/affiliate/hetrix"
+url = "https://hetrix.tools/a-111743"
+
+[[redirect]]
+path = "/affiliate/hetzner"
+url = "https://www.hetzner.com/cloud?mtm_campaign=shadowarcanist_sponsoring&mtm_medium=referral&mtm_content=sponsoring_link"
+
+[[redirect]]
+path = "/affiliate/hetznercredits"
+url = "https://hetzner.cloud/?ref=SGwV3rCRnKeg"

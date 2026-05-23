@@ -1,0 +1,138 @@
+---
+title: Multi-Vhost Setup
+description: Serve multiple websites from a single Rustinx container.
+---
+
+This example shows how to serve multiple sites from one Rustinx container using virtual hosts.
+
+## Use Case
+
+You have several small static sites that don't need their own containers. One Rustinx instance handles all of them, routing by hostname.
+
+## Project Structure
+
+<Files>
+  <Folder name="multi-site" defaultOpen>
+    <Folder name="sites" defaultOpen>
+      <Folder name="blog">
+        <File name="index.html" />
+        <Folder name="posts" />
+      </Folder>
+      <Folder name="docs">
+        <File name="index.html" />
+        <Folder name="guides" />
+      </Folder>
+      <Folder name="landing">
+        <File name="index.html" />
+        <Folder name="assets" />
+      </Folder>
+    </Folder>
+    <File name="rustinx.toml" />
+  </Folder>
+</Files>
+
+## Config
+
+```toml title="rustinx.toml"
+[server]
+listen = "0.0.0.0:9090"
+behind_proxy = true
+trusted_proxy_depth = 2
+
+[defaults]
+block_dot_paths = true
+etag = true
+
+[defaults.headers]
+X-Content-Type-Options = "nosniff"
+X-Frame-Options = "DENY"
+Content-Security-Policy = "default-src 'self'; frame-ancestors 'none'"
+Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
+Referrer-Policy = "strict-origin-when-cross-origin"
+
+# Blog - static HTML, no SPA
+[[vhost]]
+hostnames = ["blog.example.com"]
+root = "/static/blog"
+
+# Docs - SPA with asset passthrough
+[[vhost]]
+hostnames = ["docs.example.com"]
+root = "/static/docs"
+spa = true
+spa_ignore = ["/assets"]
+
+# Landing page - multiple hostnames
+[[vhost]]
+hostnames = ["example.com", "www.example.com"]
+root = "/static/landing"
+
+[vhost.headers]
+Access-Control-Allow-Origin = "https://example.com"
+```
+
+## Docker Compose
+
+```yaml title="docker-compose.yml"
+services:
+  sites:
+    image: ghcr.io/shadowarcanist/rustinx:v1.0
+    expose:
+      - "9090"
+    volumes:
+      - ./rustinx.toml:/etc/rustinx/rustinx.toml:ro
+      - ./sites:/static:ro
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.sites.rule=Host(`blog.example.com`) || Host(`docs.example.com`) || Host(`example.com`) || Host(`www.example.com`)"
+      - "traefik.http.services.sites.loadbalancer.server.port=9090"
+```
+
+## Wildcard Alternative
+
+If you have many subdomains with the same content, use a wildcard:
+
+```toml
+[[vhost]]
+hostnames = ["*.example.com"]
+root = "/static/default"
+spa = true
+
+# Override specific subdomain
+[[vhost]]
+hostnames = ["api-docs.example.com"]
+root = "/static/api-docs"
+```
+
+## Per-Vhost Headers
+
+Each vhost can have its own security headers. Vhost headers override defaults:
+
+```toml
+[defaults.headers]
+X-Frame-Options = "DENY"
+
+# This vhost allows embedding in iframes from same origin
+[[vhost]]
+hostnames = ["embeddable.example.com"]
+root = "/static/widget"
+
+[vhost.headers]
+X-Frame-Options = "SAMEORIGIN"
+```
+
+## Monitoring
+
+Check which vhosts are loaded at startup:
+
+```rust
+[rustinx] listening on 0.0.0.0:9090 (max_conn=1024)
+[rustinx]   vhost: blog.example.com -> /static/blog
+[rustinx]   vhost: docs.example.com -> /static/docs
+[rustinx]   vhost: example.com, www.example.com -> /static/landing
+```

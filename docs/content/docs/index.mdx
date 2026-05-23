@@ -1,0 +1,51 @@
+---
+title: Rustinx
+description: Ultra-lightweight static web server built in Rust. Designed for containerized static sites behind a reverse proxy.
+icon: Shield
+---
+
+Rustinx is a minimal static web server for Docker containers. It serves HTML, CSS, JavaScript, images, and other static files with low resource usage behind a reverse proxy like Traefik or Caddy.
+
+## Why Rustinx?
+
+- **Tiny footprint**: Under 800KB binary, under 2MB idle memory
+- **Simple config**: Single TOML file for configuration
+- **Docker-native**: Scratch-based image, non-root, read-only filesystem
+- **No TLS complexity**: Designed to run behind a reverse proxy like Traefik or Caddy
+
+## Quick Start
+
+Create a config file and start serving:
+
+```toml title="rustinx.toml"
+[[vhost]]
+hostnames = ["_"]
+root = "/static"
+```
+
+```bash
+rustinx --config rustinx.toml
+```
+
+Or use Docker with zero configuration:
+
+```bash
+docker run -v ./dist:/static:ro ghcr.io/shadowarcanist/rustinx:v1.0
+```
+
+## How It Fits In Your Stack
+
+Rustinx sits at the end of your proxy chain, serving static files inside a container:
+
+```text
+Client -> Traefik -> Rustinx (container)
+```
+
+It does not handle TLS, compression, range requests, or dynamic content. Your reverse proxy handles all of that. Rustinx does one thing well: serve static files from containers with minimal overhead.
+
+<Cards>
+  <Card title="Getting Started" href="/getting-started" />
+  <Card title="Configuration" href="/configuration" />
+  <Card title="Deployment" href="/deployment/docker" />
+  <Card title="Examples" href="/examples/spa-app" />
+</Cards>

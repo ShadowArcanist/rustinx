@@ -1,0 +1,96 @@
+---
+title: Security
+description: Security features and protections built into Rustinx.
+---
+
+Rustinx was built with security as a core design goal.
+
+## Path Traversal Protection
+
+Five layers prevent accessing files outside the document root:
+
+1. **URL decoding validation**: Rejects overlong UTF-8, encoded slashes, encoded controls, and malformed percent sequences
+2. **Path segment validation**: Rejects `..`, null bytes, and backslashes
+3. **Filesystem canonicalization**: Resolves symlinks and verifies the real path is under the root
+4. **Dot-path blocking**: Blocks paths containing segments like `.env`, `.git`, `.htaccess`
+5. **Symlink-to-dotfile detection**: Even if a symlink has a safe name, if it points to a dotfile, it is blocked
+
+## Dot-Path Blocking
+
+When `block_dot_paths = true` (default), any request path containing a segment that starts with `.` and has more than one character is blocked:
+
+| Path | Blocked? |
+| --- | --- |
+| `/.env` | Yes |
+| `/.git/config` | Yes |
+| `/.htaccess` | Yes |
+| `/assets/.hidden/file.txt` | Yes |
+| `/%2Eenv` | Yes (decoded first) |
+| `/normal/path` | No |
+
+This also applies to config-specified paths: `index`, `custom_404`, and `routes.serve` cannot point to dotfiles.
+
+Symlinks that resolve to dotfiles are also blocked. A symlink `safe-link → .env` at `/safe-link` is blocked even though the request path has no dot segment.
+
+## Security Headers
+
+Every response includes these headers by default:
+
+```http
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Content-Security-Policy: default-src 'self'; frame-ancestors 'none'
+Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+Referrer-Policy: strict-origin-when-cross-origin
+```
+
+Pre-vhost error responses (400 Bad Request, 404 Not Found for unknown hosts) also get baseline security headers.
+
+See [Security Headers](/configuration/headers) for customization options.
+
+## Method Restrictions
+
+Only `GET` and `HEAD` are served. All other methods return `405 Method Not Allowed`. This cannot be relaxed — Rustinx is a static server and has no reason to accept POST, PUT, DELETE, or OPTIONS.
+
+## Connection Protection
+
+- **Connection limit**: Configurable max concurrent connections (default 1024)
+- **Header read timeout**: 10 second timeout for reading request headers (prevents slowloris)
+- **Connection timeout**: 30 second total connection timeout
+- **Keep-alive disabled**: Each connection serves one request (proxy handles connection pooling)
+- **Request URI limit**: Paths longer than 8KB return `414 URI Too Large`
+- **HTTP buffer limit**: 16KB max for HTTP parser buffer
+
+## File Size Limit
+
+Files larger than `max_file_size` (default 50MB) return `413 File Too Large` instead of being served.
+
+## Streaming (No Memory Exhaustion)
+
+Files are streamed in 8KB chunks. Even with 1000 concurrent requests for large files, memory usage stays constant. HEAD requests never read file content.
+
+## Config Safety
+
+Rustinx validates the entire config at startup and rejects:
+
+- Unknown config keys (catches typos)
+- Dangerous root directories (`/`, `/etc`, `/Users`, system paths)
+- Dotfile targets in index/routes/custom_404
+- Unsafe security header values
+- Protocol-relative redirects
+- HTTP downgrade redirects
+- Embedded credentials in redirect URLs
+- Unsafe CORS combinations
+- Duplicate hostnames, redirect paths, route paths, and CSP directives
+- Invalid DNS hostnames
+- Out-of-range server limits
+
+## Docker Hardening
+
+The official Docker image runs with:
+
+- `scratch` base (no shell, no package manager, no tools)
+- Non-root user (`65534:65534`)
+- Read-only filesystem
+- `no-new-privileges` security option
+- `cap_drop: ALL`

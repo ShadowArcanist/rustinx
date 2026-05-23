@@ -1,0 +1,71 @@
+---
+title: Wildcard Hostnames
+description: Serve all subdomains of a domain with a single vhost.
+---
+
+Wildcard hostnames let one vhost handle all subdomains of a domain.
+
+## Basic Usage
+
+```toml title="rustinx.toml"
+[[vhost]]
+hostnames = ["*.example.com"]
+root = "/static"
+```
+
+This matches:
+- `blog.example.com`
+- `app.example.com`
+- `staging.app.example.com`
+
+## What Wildcards Do NOT Match
+
+Wildcards only match subdomains. The apex domain itself is not matched:
+
+```toml
+[[vhost]]
+hostnames = ["*.example.com"]
+root = "/static/wildcard"
+
+[[vhost]]
+hostnames = ["example.com"]
+root = "/static/apex"
+```
+
+- `sub.example.com` → served from `/static/wildcard`
+- `example.com` → served from `/static/apex`
+
+## Matching Priority
+
+When a request arrives, Rustinx checks vhosts in this order:
+
+1. **Exact match**: `blog.example.com` defined as an exact hostname
+2. **Wildcard match**: `*.example.com` pattern
+3. **Catch-all**: `_` hostname
+
+This means you can override specific subdomains:
+
+```toml
+# Specific subdomain with SPA
+[[vhost]]
+hostnames = ["app.example.com"]
+root = "/static/app"
+spa = true
+
+# Everything else
+[[vhost]]
+hostnames = ["*.example.com"]
+root = "/static/default"
+```
+
+## Wildcard Rules
+
+- The wildcard must be `*.` followed by at least two DNS labels
+- `*.example.com` is valid
+- `*.com` is rejected (too broad)
+- `*.co.uk` is valid
+- Only one wildcard per hostname entry
+
+## Trailing Dot Normalization
+
+DNS fully-qualified domain names end with a dot (`example.com.`). Rustinx normalizes these automatically. A request with `Host: example.com.` matches the vhost for `example.com`.
