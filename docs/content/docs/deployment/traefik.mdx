@@ -16,7 +16,7 @@ Internet → Traefik → Rustinx (:9090)
 ```yaml title="docker-compose.yml"
 services:
   web:
-    image: ghcr.io/shadowarcanist/rustinx:v1.0
+    image: ghcr.io/shadowarcanist/rustinx:v1.1
     expose:
       - "9090"
     volumes:
@@ -68,7 +68,7 @@ Run several Rustinx containers behind one Traefik instance:
 ```yaml title="docker-compose.yml"
 services:
   blog:
-    image: ghcr.io/shadowarcanist/rustinx:v1.0
+    image: ghcr.io/shadowarcanist/rustinx:v1.1
     volumes:
       - ./blog/dist:/static:ro
     labels:
@@ -77,7 +77,7 @@ services:
       - "traefik.http.services.blog.loadbalancer.server.port=9090"
 
   docs:
-    image: ghcr.io/shadowarcanist/rustinx:v1.0
+    image: ghcr.io/shadowarcanist/rustinx:v1.1
     volumes:
       - ./dist:/static:ro
     labels:

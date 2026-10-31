@@ -8,7 +8,7 @@ Rustinx is designed to run in Docker. The official image is built from `scratch`
 ## Pull the Image
 
 ```bash
-docker pull ghcr.io/shadowarcanist/rustinx:v1.0
+docker pull ghcr.io/shadowarcanist/rustinx:v1.1
 ```
 
 ## Run
@@ -20,7 +20,7 @@ docker pull ghcr.io/shadowarcanist/rustinx:v1.0
     ```bash
     docker run -p 9090:9090 \
       -v ./dist:/static:ro \
-      ghcr.io/shadowarcanist/rustinx:v1.0
+      ghcr.io/shadowarcanist/rustinx:v1.1
     ```
   </Tab>
   <Tab value="With Config File">
@@ -30,14 +30,14 @@ docker pull ghcr.io/shadowarcanist/rustinx:v1.0
     docker run -p 9090:9090 \
       -v ./rustinx.toml:/etc/rustinx/rustinx.toml:ro \
       -v ./dist:/static:ro \
-      ghcr.io/shadowarcanist/rustinx:v1.0
+      ghcr.io/shadowarcanist/rustinx:v1.1
     ```
   </Tab>
   <Tab value="Docker Compose">
     ```yaml title="docker-compose.yml"
     services:
       web:
-        image: ghcr.io/shadowarcanist/rustinx:v1.0
+        image: ghcr.io/shadowarcanist/rustinx:v1.1
         expose:
           - "9090"
         volumes:
@@ -61,7 +61,7 @@ docker pull ghcr.io/shadowarcanist/rustinx:v1.0
     COPY . .
     RUN npm run build
 
-    FROM ghcr.io/shadowarcanist/rustinx:v1.0
+    FROM ghcr.io/shadowarcanist/rustinx:v1.1
     COPY --from=builder /app/dist /static
     COPY rustinx.toml /etc/rustinx/rustinx.toml
     ```
@@ -84,7 +84,7 @@ The official image already runs as non-root on a read-only filesystem. For maxim
 ```yaml
 services:
   web:
-    image: ghcr.io/shadowarcanist/rustinx:v1.0
+    image: ghcr.io/shadowarcanist/rustinx:v1.1
     read_only: true
     cap_drop:
       - ALL

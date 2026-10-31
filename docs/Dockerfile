@@ -13,6 +13,6 @@ RUN bun run postinstall && bun run build
 
 # ── Runtime stage ────────────────────────────────────────────
 # Serve fully prerendered static docs with Rustinx
-FROM ghcr.io/shadowarcanist/rustinx:v1.0
+FROM ghcr.io/shadowarcanist/rustinx:v1.1
 COPY --from=builder /app/.output/public /static
 COPY rustinx.toml /etc/rustinx/rustinx.toml

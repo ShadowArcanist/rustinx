@@ -22,7 +22,7 @@ https://rustinx.shadowarcanist.com
 ## Run with Docker
 
 ```bash
-docker run -p 9090:9090 -v ./dist:/static:ro ghcr.io/shadowarcanist/rustinx:v1.0
+docker run -p 9090:9090 -v ./dist:/static:ro ghcr.io/shadowarcanist/rustinx:v1.1
 ```
 
 Open `http://localhost:9090`.

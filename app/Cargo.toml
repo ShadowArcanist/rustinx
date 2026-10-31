@@ -1,6 +1,6 @@
 [package]
 name = "rustinx"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2021"
 description = "Ultra-lightweight static web server for containerized static sites"
 license = "MIT"

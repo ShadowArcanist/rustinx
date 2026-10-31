@@ -68,7 +68,7 @@ When running in Docker, mount a volume for the log directory:
 ```yaml title="docker-compose.yml"
 services:
   web:
-    image: ghcr.io/shadowarcanist/rustinx:v1.0
+    image: ghcr.io/shadowarcanist/rustinx:v1.1
     volumes:
       - ./rustinx.toml:/etc/rustinx/rustinx.toml:ro
       - ./dist:/static:ro

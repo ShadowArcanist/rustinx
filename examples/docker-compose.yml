@@ -2,7 +2,7 @@
 # Do NOT publish ports directly when behind_proxy = true
 services:
   web:
-    image: ghcr.io/shadowarcanist/rustinx:v1.0
+    image: ghcr.io/shadowarcanist/rustinx:v1.1
     # Or build from source:
     # build: .
     expose:

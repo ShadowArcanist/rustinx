@@ -11,7 +11,7 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-FROM ghcr.io/shadowarcanist/rustinx:v1.0
+FROM ghcr.io/shadowarcanist/rustinx:v1.1
 COPY --from=builder /app/dist /static
 COPY rustinx.toml /etc/rustinx/rustinx.toml
 # Optional: copy redirect files
@@ -21,7 +21,7 @@ COPY rustinx.toml /etc/rustinx/rustinx.toml
 # ── Option B: Pre-built static files only ─────────────────────
 # If your CI builds the static files separately:
 #
-# FROM ghcr.io/shadowarcanist/rustinx:v1.0
+# FROM ghcr.io/shadowarcanist/rustinx:v1.1
 # COPY ./dist /static
 # COPY rustinx.toml /etc/rustinx/rustinx.toml
 
