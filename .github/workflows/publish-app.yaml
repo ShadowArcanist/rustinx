@@ -24,8 +24,10 @@ jobs:
       - name: Resolve tag from release
         id: tag
         shell: bash
+        env:
+          TAG: ${{ github.event.release.tag_name }}
         run: |
-          echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
       - name: Prepare image reference
         id: refs

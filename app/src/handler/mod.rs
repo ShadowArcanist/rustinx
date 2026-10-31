@@ -123,13 +123,10 @@ async fn serve_vhost(
 
     // 4. Routes (prefix match on decoded path)
     for route in &vhost.routes {
-        if decoded == route.path
-            || (decoded.starts_with(route.path.as_str())
-                && decoded.as_bytes().get(route.path.len()) == Some(&b'/'))
-        {
+        if path::matches_prefix(&decoded, &route.path) {
             let file_path = vhost.root.join(&route.serve);
             if let Some(resp) =
-                file_server::serve(&file_path, vhost, req, max_file_size).await
+                file_server::serve(&file_path, vhost, req, max_file_size, StatusCode::OK).await
             {
                 return resp;
             }
@@ -168,20 +165,31 @@ async fn serve_vhost(
     };
 
     // 8. Try exact file
-    if let Some(resp) = file_server::serve(&file_path, vhost, req, max_file_size).await {
+    if let Some(resp) =
+        file_server::serve(&file_path, vhost, req, max_file_size, StatusCode::OK).await
+    {
         return resp;
     }
 
     // 9. Try directory index
     let index_path = file_path.join(&vhost.index);
-    if let Some(resp) = file_server::serve(&index_path, vhost, req, max_file_size).await {
+    if let Some(resp) =
+        file_server::serve(&index_path, vhost, req, max_file_size, StatusCode::OK).await
+    {
         return resp;
     }
 
     // 10. SPA fallback
-    if vhost.spa && !in_spa_ignore(&decoded, &vhost.spa_ignore) {
+    if vhost.spa
+        && !vhost
+            .spa_ignore
+            .iter()
+            .any(|p| path::matches_prefix(&decoded, p))
+    {
         let spa_path = vhost.root.join(&vhost.index);
-        if let Some(resp) = file_server::serve(&spa_path, vhost, req, max_file_size).await {
+        if let Some(resp) =
+            file_server::serve(&spa_path, vhost, req, max_file_size, StatusCode::OK).await
+        {
             return resp;
         }
     }
@@ -190,11 +198,10 @@ async fn serve_vhost(
     if let Some(ref custom) = vhost.custom_404 {
         let custom_path = vhost.root.join(custom);
         if let Some(resp) =
-            file_server::serve(&custom_path, vhost, req, max_file_size).await
+            file_server::serve(&custom_path, vhost, req, max_file_size, StatusCode::NOT_FOUND)
+                .await
         {
-            let (mut parts, body) = resp.into_parts();
-            parts.status = StatusCode::NOT_FOUND;
-            return Response::from_parts(parts, body);
+            return resp;
         }
     }
 
@@ -207,18 +214,23 @@ async fn serve_vhost(
 fn extract_host<T>(req: &Request<T>) -> Option<String> {
     let raw = req.headers().get(header::HOST)?.to_str().ok()?;
 
+    // IPv6 literal ("[::1]" or "[::1]:9090"): only the catch-all can match it
+    if let Some(rest) = raw.strip_prefix('[') {
+        let (addr, after) = rest.split_once(']')?;
+        addr.parse::<std::net::Ipv6Addr>().ok()?;
+        if !after.is_empty() && !valid_port(after.strip_prefix(':')?) {
+            return None;
+        }
+        return Some(format!("[{}]", addr.to_lowercase()));
+    }
+
     let (host_part, port_part) = match raw.rfind(':') {
         Some(i) => (&raw[..i], Some(&raw[i + 1..])),
         None => (raw, None),
     };
 
-    if let Some(port) = port_part {
-        if port.is_empty()
-            || !port.bytes().all(|b| b.is_ascii_digit())
-            || port.parse::<u16>().map_or(true, |p| p == 0)
-        {
-            return None;
-        }
+    if port_part.is_some_and(|p| !valid_port(p)) {
+        return None;
     }
 
     // Reject colons in host part (catches example.com:443:80)
@@ -248,22 +260,35 @@ fn extract_host<T>(req: &Request<T>) -> Option<String> {
     Some(host)
 }
 
+fn valid_port(port: &str) -> bool {
+    !port.is_empty()
+        && port.bytes().all(|b| b.is_ascii_digit())
+        && port.parse::<u16>().is_ok_and(|p| p != 0)
+}
+
 fn find_vhost<'a>(vhosts: &'a [ResolvedVhost], host: &str) -> Option<&'a ResolvedVhost> {
     vhosts
         .iter()
         .find(|v| v.hostnames.iter().any(|h| h != "_" && !h.starts_with("*.") && h == host))
         .or_else(|| {
-            vhosts.iter().find(|v| {
-                v.hostnames.iter().any(|h| {
-                    if let Some(root) = h.strip_prefix("*.") {
-                        host.len() > root.len()
-                            && host.ends_with(root)
-                            && host.as_bytes()[host.len() - root.len() - 1] == b'.'
-                    } else {
-                        false
-                    }
+            // Most specific wildcard wins: *.a.example.com before *.example.com
+            vhosts
+                .iter()
+                .filter_map(|v| {
+                    v.hostnames
+                        .iter()
+                        .filter_map(|h| h.strip_prefix("*."))
+                        .filter(|root| {
+                            host.len() > root.len()
+                                && host.ends_with(root)
+                                && host.as_bytes()[host.len() - root.len() - 1] == b'.'
+                        })
+                        .map(str::len)
+                        .max()
+                        .map(|len| (len, v))
                 })
-            })
+                .max_by_key(|(len, _)| *len)
+                .map(|(_, v)| v)
         })
         .or_else(|| {
             vhosts
@@ -280,15 +305,16 @@ fn client_ip<T>(req: &Request<T>, addr: SocketAddr, behind_proxy: bool, depth: u
     let fallback = addr.ip().to_string();
     let depth = depth.max(1);
 
-    if let Some(xff) = req.headers().get("x-forwarded-for") {
-        if let Ok(v) = xff.to_str() {
-            let parts: Vec<&str> = v.split(',').map(|s| s.trim()).collect();
+    // Proxies may append a new header line instead of extending the first one,
+    // so the chain is all lines in order (RFC 9110 §5.3)
+    let xff = req.headers().get_all("x-forwarded-for");
+    if xff.iter().next().is_some() {
+        if let Ok(lines) = xff.iter().map(|v| v.to_str()).collect::<Result<Vec<_>, _>>() {
+            let parts: Vec<&str> = lines.iter().flat_map(|l| l.split(',')).map(str::trim).collect();
             if parts.len() >= depth {
-                let idx = parts.len() - depth;
-                if let Some(ip) = parts.get(idx) {
-                    if ip.parse::<std::net::IpAddr>().is_ok() {
-                        return ip.to_string();
-                    }
+                let ip = parts[parts.len() - depth];
+                if ip.parse::<std::net::IpAddr>().is_ok() {
+                    return ip.to_string();
                 }
             }
         }
@@ -306,10 +332,75 @@ fn client_ip<T>(req: &Request<T>, addr: SocketAddr, behind_proxy: bool, depth: u
     fallback
 }
 
-fn in_spa_ignore(path: &str, prefixes: &[String]) -> bool {
-    prefixes.iter().any(|p| {
-        path == p.as_str()
-            || (path.starts_with(p.as_str())
-                && path.as_bytes().get(p.len()) == Some(&b'/'))
-    })
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Config;
+
+    fn req_with(headers: &[(&str, &str)]) -> Request<()> {
+        let mut b = Request::builder();
+        for (k, v) in headers {
+            b = b.header(*k, *v);
+        }
+        b.body(()).unwrap()
+    }
+
+    fn vhosts(toml_str: &str) -> Vec<ResolvedVhost> {
+        toml::from_str::<Config>(toml_str).unwrap().resolve().unwrap()
+    }
+
+    #[test]
+    fn host_ipv6_literal() {
+        assert_eq!(extract_host(&req_with(&[("host", "[::1]:9090")])).unwrap(), "[::1]");
+        assert_eq!(extract_host(&req_with(&[("host", "[::1]")])).unwrap(), "[::1]");
+        assert!(extract_host(&req_with(&[("host", "[::1]:0")])).is_none());
+        assert!(extract_host(&req_with(&[("host", "[nope]")])).is_none());
+    }
+
+    #[test]
+    fn host_name_with_port() {
+        assert_eq!(extract_host(&req_with(&[("host", "Example.COM.:443")])).unwrap(), "example.com");
+        assert!(extract_host(&req_with(&[("host", "example.com:443:80")])).is_none());
+    }
+
+    #[test]
+    fn most_specific_wildcard_wins() {
+        let v = vhosts(r#"
+            [[vhost]]
+            hostnames = ["*.example.com"]
+            root = "/tmp"
+            index = "broad.html"
+            [[vhost]]
+            hostnames = ["*.app.example.com"]
+            root = "/tmp"
+            index = "narrow.html"
+        "#);
+        assert_eq!(find_vhost(&v, "x.app.example.com").unwrap().index, "narrow.html");
+        assert_eq!(find_vhost(&v, "x.example.com").unwrap().index, "broad.html");
+        assert!(find_vhost(&v, "example.com").is_none());
+    }
+
+    #[test]
+    fn ipv6_host_uses_catch_all() {
+        let v = vhosts(r#"
+            [[vhost]]
+            hostnames = ["_"]
+            root = "/tmp"
+        "#);
+        assert!(find_vhost(&v, "[::1]").is_some());
+    }
+
+    #[test]
+    fn xff_reads_all_header_lines() {
+        let addr: SocketAddr = "10.0.0.1:1234".parse().unwrap();
+        let req = req_with(&[
+            ("x-forwarded-for", "6.6.6.6"),
+            ("x-forwarded-for", "1.2.3.4"),
+        ]);
+        // The last entry is the one the trusted proxy appended
+        assert_eq!(client_ip(&req, addr, true, 1), "1.2.3.4");
+        assert_eq!(client_ip(&req, addr, true, 2), "6.6.6.6");
+        assert_eq!(client_ip(&req, addr, true, 3), "10.0.0.1");
+    }
 }

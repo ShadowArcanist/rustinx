@@ -118,18 +118,17 @@ pub fn parse_timezone(tz: &str) -> Result<i32, String> {
     if tz == "UTC" || tz == "+00:00" {
         return Ok(0);
     }
-    if tz.len() == 6 && (tz.starts_with('+') || tz.starts_with('-')) {
-        let sign = if tz.starts_with('-') { -1 } else { 1 };
-        let hours: i32 = tz[1..3]
-            .parse()
-            .map_err(|_| format!("invalid timezone hours: '{tz}'"))?;
-        let minutes: i32 = tz[4..6]
-            .parse()
-            .map_err(|_| format!("invalid timezone minutes: '{tz}'"))?;
-        if hours > 14 || minutes > 59 {
-            return Err(format!("timezone offset out of range: '{tz}'"));
+    // Byte match: slicing a &str by index panics on non-ASCII input
+    if let [sign @ (b'+' | b'-'), h1, h2, b':', m1, m2] = *tz.as_bytes() {
+        if [h1, h2, m1, m2].iter().all(u8::is_ascii_digit) {
+            let hours = i32::from(h1 - b'0') * 10 + i32::from(h2 - b'0');
+            let minutes = i32::from(m1 - b'0') * 10 + i32::from(m2 - b'0');
+            if hours > 14 || minutes > 59 {
+                return Err(format!("timezone offset out of range: '{tz}'"));
+            }
+            let sign = if sign == b'-' { -1 } else { 1 };
+            return Ok(sign * (hours * 3600 + minutes * 60));
         }
-        return Ok(sign * (hours * 3600 + minutes * 60));
     }
     Err(format!(
         "timezone must be 'UTC' or offset like '+05:30' or '-05:00', got '{tz}'"
@@ -140,4 +139,25 @@ fn sanitize(s: &str) -> String {
     s.chars()
         .map(|c| if c.is_control() { '_' } else { c })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn timezone_valid_offsets() {
+        assert_eq!(parse_timezone("UTC").unwrap(), 0);
+        assert_eq!(parse_timezone("+05:30").unwrap(), 19800);
+        assert_eq!(parse_timezone("-05:00").unwrap(), -18000);
+    }
+
+    #[test]
+    fn timezone_rejects_malformed() {
+        assert!(parse_timezone("+05x30").is_err());
+        assert!(parse_timezone("+-1:00").is_err());
+        assert!(parse_timezone("+15:00").is_err());
+        // Non-ASCII must return an error, not panic on a char boundary
+        assert!(parse_timezone("+1é:0").is_err());
+    }
 }

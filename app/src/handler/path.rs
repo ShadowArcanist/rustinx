@@ -48,6 +48,12 @@ pub fn resolve(root: &Path, decoded_path: &str) -> Option<PathBuf> {
     Some(result)
 }
 
+/// `/api` matches `/api` and `/api/x`, but not `/api2`.
+pub fn matches_prefix(path: &str, prefix: &str) -> bool {
+    path.strip_prefix(prefix)
+        .is_some_and(|rest| rest.is_empty() || rest.starts_with('/'))
+}
+
 fn hex_val(b: u8) -> Option<u8> {
     match b {
         b'0'..=b'9' => Some(b - b'0'),
@@ -184,5 +190,13 @@ mod tests {
         let decoded = decode("/%2E%2E/etc/passwd").unwrap();
         assert_eq!(decoded, "/../etc/passwd");
         assert!(resolve(Path::new("/static"), &decoded).is_none());
+    }
+
+    #[test]
+    fn prefix_match_on_segment_boundary() {
+        assert!(matches_prefix("/api", "/api"));
+        assert!(matches_prefix("/api/users", "/api"));
+        assert!(!matches_prefix("/api2", "/api"));
+        assert!(!matches_prefix("/ap", "/api"));
     }
 }

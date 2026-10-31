@@ -43,12 +43,15 @@ function fileSizeToBytes(value: number, unit: string): number {
   return value * (FILE_SIZE_MULTIPLIERS[unit] || 1);
 }
 
+// JSON string escaping is valid TOML basic-string escaping
+const str = (s: string) => JSON.stringify(s);
+
 function generateToml(server: ServerConfig, vhosts: VhostConfig[]): string {
   const lines: string[] = [];
   const maxBytes = fileSizeToBytes(server.maxFileSize, server.maxFileSizeUnit);
 
   lines.push('[server]');
-  lines.push(`listen = "${server.listen}"`);
+  lines.push(`listen = ${str(server.listen)}`);
   if (server.behindProxy === 'enabled') {
     lines.push('behind_proxy = true');
     lines.push(`trusted_proxy_depth = ${server.proxyDepth}`);
@@ -64,33 +67,35 @@ function generateToml(server: ServerConfig, vhosts: VhostConfig[]): string {
     lines.push('');
     lines.push('[logging]');
     lines.push('enabled = true');
-    lines.push(`path = "${server.logPath}"`);
+    lines.push(`path = ${str(server.logPath)}`);
     if (server.logTimezone !== 'UTC')
-      lines.push(`timezone = "${server.logTimezone}"`);
+      lines.push(`timezone = ${str(server.logTimezone)}`);
   }
 
   for (const vhost of vhosts) {
     lines.push('');
     lines.push('[[vhost]]');
-    lines.push(`hostnames = ["${vhost.hostname}"]`);
-    lines.push(`root = "${vhost.root}"`);
+    lines.push(`hostnames = [${str(vhost.hostname)}]`);
+    lines.push(`root = ${str(vhost.root)}`);
 
     if (vhost.spa === 'enabled') lines.push('spa = true');
     if (vhost.spa === 'enabled' && vhost.spaIgnore.trim()) {
       const parts = vhost.spaIgnore
         .split(',')
-        .map((s) => `"${s.trim()}"`)
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map(str)
         .join(', ');
       lines.push(`spa_ignore = [${parts}]`);
     }
     if (vhost.customIndex && vhost.customIndex !== 'index.html')
-      lines.push(`index = "${vhost.customIndex}"`);
-    if (vhost.custom404) lines.push(`custom_404 = "${vhost.custom404}"`);
+      lines.push(`index = ${str(vhost.customIndex)}`);
+    if (vhost.custom404) lines.push(`custom_404 = ${str(vhost.custom404)}`);
 
     if (vhost.corsOrigin.trim()) {
       lines.push('');
       lines.push('[vhost.headers]');
-      lines.push(`Access-Control-Allow-Origin = "${vhost.corsOrigin}"`);
+      lines.push(`Access-Control-Allow-Origin = ${str(vhost.corsOrigin)}`);
     }
   }
 

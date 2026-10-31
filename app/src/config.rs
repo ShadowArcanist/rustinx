@@ -317,15 +317,29 @@ impl Config {
             validate_match_path("spa_ignore", entry)?;
         }
 
+        // Normalize "/api/" to "/api" so prefix matching also covers "/api/x"
+        let mut routes: Vec<RouteEntry> = vhost
+            .routes
+            .iter()
+            .map(|r| RouteEntry {
+                path: trim_trailing_slash(&r.path),
+                serve: r.serve.clone(),
+            })
+            .collect();
+        let spa_ignore: Vec<String> =
+            vhost.spa_ignore.iter().map(|p| trim_trailing_slash(p)).collect();
+
         // Validate no duplicate route paths
         {
             let mut seen = std::collections::HashSet::new();
-            for r in &vhost.routes {
+            for r in &routes {
                 if !seen.insert(&r.path) {
                     return Err(format!("duplicate route path: '{}'", r.path));
                 }
             }
         }
+        // Longest first, so the most specific route wins
+        routes.sort_by_key(|r| std::cmp::Reverse(r.path.len()));
 
         // Canonicalize root at startup (fail fast if inaccessible)
         let root = std::fs::canonicalize(&vhost.root)
@@ -467,29 +481,36 @@ impl Config {
             root,
             index: vhost.index.clone(),
             spa: vhost.spa,
-            spa_ignore: vhost.spa_ignore.clone(),
+            spa_ignore,
             block_dot_paths: vhost
                 .block_dot_paths
                 .unwrap_or(self.defaults.block_dot_paths),
             etag: vhost.etag.unwrap_or(self.defaults.etag),
             allowed_methods: vhost
                 .allowed_methods
-                .clone()
-                .or_else(|| self.defaults.allowed_methods.clone()),
+                .as_ref()
+                .or(self.defaults.allowed_methods.as_ref())
+                .map(|ms| ms.iter().map(|m| m.to_ascii_uppercase()).collect()),
             deny_all: vhost.deny_all,
             custom_404: vhost.custom_404.clone(),
             headers,
             redirects,
-            routes: {
-                let mut r = vhost.routes.clone();
-                r.sort_by(|a, b| b.path.len().cmp(&a.path.len()));
-                r
-            },
+            routes,
         })
     }
 }
 
+fn trim_trailing_slash(path: &str) -> String {
+    match path.trim_end_matches('/') {
+        "" => "/".into(),
+        p => p.into(),
+    }
+}
+
 fn validate_relative_path(name: &str, value: &str) -> Result<(), String> {
+    if value.is_empty() {
+        return Err(format!("{name} cannot be empty"));
+    }
     if value.contains("..") || value.starts_with('/') || value.starts_with('\\') {
         return Err(format!(
             "{name} must be relative without '..': '{value}'"
@@ -537,9 +558,10 @@ fn validate_match_path(name: &str, value: &str) -> Result<(), String> {
 }
 
 fn validate_redirect(r: &RedirectEntry) -> Result<(), String> {
-    if !(300..=399).contains(&r.code) {
+    // 300/304/305/306 are not usable redirects (304 means "not modified")
+    if !matches!(r.code, 301 | 302 | 303 | 307 | 308) {
         return Err(format!(
-            "redirect '{}' has invalid status code {} (must be 300-399)",
+            "redirect '{}' has invalid status code {} (must be 301, 302, 303, 307 or 308)",
             r.path, r.code
         ));
     }
@@ -627,27 +649,6 @@ fn validate_methods(methods: &[String]) -> Result<(), String> {
         }
     }
     Ok(())
-}
-
-fn _is_http_token_char(b: u8) -> bool {
-    b.is_ascii_alphanumeric()
-        || matches!(
-            b,
-            b'!' | b'#'
-                | b'$'
-                | b'%'
-                | b'&'
-                | b'\''
-                | b'*'
-                | b'+'
-                | b'-'
-                | b'.'
-                | b'^'
-                | b'_'
-                | b'`'
-                | b'|'
-                | b'~'
-        )
 }
 
 fn validate_server_limits(s: &ServerConfig) -> Result<(), String> {
@@ -1346,4 +1347,66 @@ mod tests {
         "#);
         assert!(r.contains("duplicate redirect"), "dup redirect: {r}");
     }
+
+    #[test]
+    fn reject_not_modified_redirect_code() {
+        let r = expect_err(r#"
+            [[vhost]]
+            hostnames = ["a.example.com"]
+            root = "/tmp"
+            [[vhost.redirects]]
+            path = "/x"
+            url = "/y"
+            code = 304
+        "#);
+        assert!(r.contains("status code"), "304 redirect: {r}");
+    }
+
+    #[test]
+    fn reject_empty_route_serve() {
+        let r = expect_err(r#"
+            [[vhost]]
+            hostnames = ["a.example.com"]
+            root = "/tmp"
+            [[vhost.routes]]
+            path = "/x"
+            serve = ""
+        "#);
+        assert!(r.contains("cannot be empty"), "empty serve: {r}");
+    }
+
+    #[test]
+    fn trailing_slash_paths_normalized() {
+        let cfg: Config = toml::from_str(r#"
+            [[vhost]]
+            hostnames = ["_"]
+            root = "/tmp"
+            spa_ignore = ["/api/", "/"]
+            allowed_methods = ["get"]
+            [[vhost.routes]]
+            path = "/docs/"
+            serve = "docs.html"
+        "#).unwrap();
+        let v = &cfg.resolve().unwrap()[0];
+        assert_eq!(v.spa_ignore, ["/api", "/"]);
+        assert_eq!(v.routes[0].path, "/docs");
+        assert_eq!(v.allowed_methods.as_deref(), Some(&["GET".to_string()][..]));
+    }
+
+    #[test]
+    fn reject_duplicate_route_after_normalize() {
+        let r = expect_err(r#"
+            [[vhost]]
+            hostnames = ["a.example.com"]
+            root = "/tmp"
+            [[vhost.routes]]
+            path = "/a"
+            serve = "a.html"
+            [[vhost.routes]]
+            path = "/a/"
+            serve = "b.html"
+        "#);
+        assert!(r.contains("duplicate route"), "dup route: {r}");
+    }
 }
+

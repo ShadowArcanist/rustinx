@@ -17,6 +17,9 @@ interface ValidationResult {
   errors: string[];
 }
 
+// JSON string escaping is valid TOML basic-string escaping
+const str = (s: string) => JSON.stringify(s);
+
 function generateToml(redirects: RedirectEntry[]): string {
   if (redirects.length === 0) return '# Add redirects above';
 
@@ -25,8 +28,8 @@ function generateToml(redirects: RedirectEntry[]): string {
     if (!r.path.trim() && !r.url.trim()) continue;
     if (lines.length > 0) lines.push('');
     lines.push('[[redirect]]');
-    lines.push(`path = "${r.path}"`);
-    lines.push(`url = "${r.url}"`);
+    lines.push(`path = ${str(r.path)}`);
+    lines.push(`url = ${str(r.url)}`);
     if (r.code !== '301') lines.push(`code = ${r.code}`);
   }
 

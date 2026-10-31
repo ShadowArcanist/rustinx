@@ -86,6 +86,9 @@ async fn main() {
         );
     }
 
+    let shutdown = shutdown_signal();
+    tokio::pin!(shutdown);
+
     let mut conn_drops: u64 = 0;
     loop {
         tokio::select! {
@@ -93,7 +96,9 @@ async fn main() {
                 let (stream, remote_addr) = match result {
                     Ok(v) => v,
                     Err(e) => {
+                        // Back off: errors like EMFILE repeat at once and would spin the CPU
                         eprintln!("[rustinx] accept error: {e}");
+                        tokio::time::sleep(Duration::from_millis(100)).await;
                         continue;
                     }
                 };
@@ -140,12 +145,20 @@ async fn main() {
                     }
                 });
             }
-            _ = shutdown_signal() => {
+            _ = &mut shutdown => {
                 eprintln!("[rustinx] shutting down");
                 break;
             }
         }
     }
+
+    // Stop accepting, then let in-flight requests finish (all permits returned)
+    drop(listener);
+    let _ = tokio::time::timeout(
+        Duration::from_secs(5),
+        sem.acquire_many(max_connections as u32),
+    )
+    .await;
 
     // Drain access logs: drop state to close sender, then await writer
     drop(state);
